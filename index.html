@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Phonics Fireworks - 單機網頁版</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+TC:wght@500;700&display=swap');
+
+        :root {
+            --primary: #ff0055;
+            --secondary: #00ffaa;
+            --accent: #ffff00;
+            --bg: #111;
+        }
+
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: var(--bg); 
+            font-family: 'Fredoka One', cursive, 'Noto Sans TC', sans-serif;
+            user-select: none;
+            color: white;
+        }
+
+        canvas { 
+            display: block; 
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1;
+        }
+
+        /* --- UI 容器 --- */
+        #game-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+        }
+
+        /* --- 覆蓋層 --- */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+            pointer-events: auto;
+            text-align: center;
+        }
+
+        .overlay h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: var(--secondary);
+        }
+
+        .input-group {
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 15px;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px 20px;
+            border-radius: 15px;
+            border: 2px solid #444;
+            background: #222;
+            color: white;
+            font-size: 1.1rem;
+            outline: none;
+            margin-bottom: 12px;
+            font-family: 'Noto Sans TC', sans-serif;
+            box-sizing: border-box;
+        }
+
+        input:focus { border-color: var(--primary); }
+
+        /* --- 遊戲主 UI --- */
+        #header-info {
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: auto;
+            background: rgba(0,0,0,0.5);
+            font-size: 1rem;
+        }
+
+        #ui {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
+
+        #word-display {
+            font-size: clamp(3rem, 15vw, 9rem);
+            width: 90%;
+            text-align: center;
+            word-wrap: break-word;
+            line-height: 1;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5), 4px 4px 0px #333;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .word-meta {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: var(--accent);
+            background: rgba(255,255,255,0.1);
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+
+        #chinese-hint {
+            font-size: clamp(1.2rem, 5vw, 2.2rem);
+            color: #ccc;
+            margin-top: 10px;
+            font-weight: 500;
+        }
+
+        #status {
+            margin-top: 25px;
+            min-height: 1.5em;
+            color: var(--secondary);
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        /* --- 控制區 --- */
+        #footer {
+            height: 30vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            padding-bottom: 20px;
+        }
+
+        #mascot-img {
+            height: 85%;
+            max-height: 180px;
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+            transition: transform 0.2s;
+        }
+
+        #mic-btn {
+            width: 85px; height: 85px;
+            border-radius: 50%;
+            background: #222;
+            border: 4px solid #444;
+            font-size: 2.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.2s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        #mic-btn.active {
+            background: var(--primary);
+            transform: scale(1.1);
+            box-shadow: 0 0 30px var(--primary);
+            border-color: #ffaaaa;
+        }
+
+        .btn {
+            padding: 14px 35px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--primary), #ff5500);
+            color: white;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-weight: bold;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+
+        /* 排行榜 */
+        #leaderboard-box {
+            width: 100%;
+            max-width: 600px;
+            max-height: 30vh;
+            overflow-y: auto;
+            margin-top: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            border: 1px solid #333;
+        }
+        
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px; border-bottom: 1px solid #333; font-size: 0.85rem; }
+        th { color: var(--secondary); font-weight: bold; position: sticky; top: 0; background: #222; z-index: 5; }
+        .feedback-cell { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        #loading {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #111; z-index: 200;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loading">
+        <div style="border: 5px solid #333; border-top-color: var(--primary); width: 50px; height: 50px; border-radius: 50%; animation: spin 1s infinite linear;"></div>
+        <p style="margin-top: 20px;">正在讀取單字庫...</p>
+    </div>
+
+    <!-- 登入介面 -->
+    <div id="login-screen" class="overlay">
+        <img src="https://i.postimg.cc/zDbWrp7j/Gemini-Generated-Image-xdwialxdwialxdwi-removebg-preview.png" style="height: 100px; margin-bottom: 15px;">
+        <h2>聲控單字大考驗</h2>
+        <div class="input-group">
+            <input type="text" id="user-class" placeholder="班級 (如: 401)">
+            <input type="text" id="user-no" placeholder="座號 (如: 03)">
+            <input type="text" id="user-name" placeholder="姓名">
+        </div>
+        <button class="btn" onclick="startSetup()">立即開始</button>
+        <p style="font-size: 0.8rem; color: #777; margin-top: 15px;">※ 挑戰 20 個單字，加油！</p>
+    </div>
+
+    <!-- 結束介面 -->
+    <div id="result-screen" class="overlay" style="display:none;">
+        <h2 id="final-status">挑戰結束！</h2>
+        <div style="font-size: 3rem; color: var(--accent); margin-bottom: 5px;" id="final-score">0</div>
+        <p style="margin-top:0">得分 (Score)</p>
+        <div class="input-group">
+            <textarea id="user-feedback" rows="2" placeholder="分享一下心得吧..."></textarea>
+            <button class="btn" id="submit-btn" onclick="submitToGAS()">送出成績並看排行榜</button>
+        </div>
+        <div id="leaderboard-box">
+            <table id="score-table">
+                <thead>
+                    <tr>
+                        <th>班級</th>
+                        <th>座號</th>
+                        <th>姓名</th>
+                        <th>分數</th>
+                        <th>心得</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <button class="btn" style="margin-top: 15px; background: #444;" onclick="location.reload()">再玩一次</button>
+    </div>
+
+    <!-- 遊戲主體 -->
+    <div id="game-container" style="display:none;">
+        <div id="header-info">
+            <div id="player-info">Player</div>
+            <div id="progress-info">第 0 / 20 題</div>
+            <div id="score-display">得分: 0</div>
+        </div>
+
+        <div id="ui">
+            <div id="word-display">READY?</div>
+            <div class="word-meta" id="word-meta" style="display:none;">
+                <span id="meta-cat">Category</span> | <span id="meta-lv">Level</span>
+            </div>
+            <div id="chinese-hint"></div>
+            <div id="status">按住麥克風並朗讀單字</div>
+            <button class="btn" style="padding: 6px 15px; font-size: 0.85rem; margin-top: 15px; background: rgba(255,255,255,0.1); border: 1px solid #444;" onclick="playHint()">🔊 聽聽發音</button>
+        </div>
+
+        <div id="footer">
+            <img id="mascot-img" src="https://i.postimg.cc/zDbWrp7j/Gemini-Generated-Image-xdwialxdwialxdwi-removebg-preview.png">
+            <div style="text-align: center; pointer-events: auto;">
+                <div id="mic-btn">🎤</div>
+                <div style="margin-top: 10px; color: #888; font-size: 0.8rem;">按住說話 (Hold to Talk)</div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+<script>
+    // --- 【請務必在這裡貼上您的 GAS 部署網址】 ---
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXmnBCePmNZ-iNeG1aF3A4JScE4gC9pxgYhjzZuGyVWNQk-K4pFheVOqN9ulbAwazl/exec"; 
+    
+    // --- 試算表 CSV 網址 ---
+    const WORD_LIST_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSXSoov0tHBR7WZIEsFe89P_hE0iLbcMryPzaRHoUqIodf9RIQbCxEhuExj4NYhRRbor6dZ0FDUqtdE/pub?gid=0&single=true&output=csv';
+    const LEADERBOARD_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSXSoov0tHBR7WZIEsFe89P_hE0iLbcMryPzaRHoUqIodf9RIQbCxEhuExj4NYhRRbor6dZ0FDUqtdE/pub?gid=1777712164&single=true&output=csv';
+
+    // --- 遊戲變數 ---
+    const MAX_ROUNDS = 20;
+    const MASCOT_NORMAL = 'https://i.postimg.cc/zDbWrp7j/Gemini-Generated-Image-xdwialxdwialxdwi-removebg-preview.png';
+    const MASCOT_ACTIVE = 'https://i.postimg.cc/zXwyzQgT/Gemini-Generated-Image-hv182whv182whv18-removebg-preview.png';
+
+    let words = [];
+    let currentRound = 0;
+    let score = 0;
+    let userData = { class: '', no: '', name: '' };
+    let isMicHeld = false;
+    let recognition;
+
+    const audioAssets = {
+        bgm: new Audio('https://cdn.pixabay.com/download/audio/2024/11/20/audio_6785a146c9.mp3?filename=abdipr-neko-komorebi-chill-lo-fi-266788.mp3'),
+        firework: new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_4056c4bffc.mp3?filename=freesound_community-single-firework-79814.mp3'),
+        win: new Audio('https://cdn.pixabay.com/download/audio/2023/11/12/audio_30bd7ff18f.mp3?filename=musheran-win-176035.mp3'),
+        lose: new Audio('https://cdn.pixabay.com/download/audio/2022/02/11/audio_7f0bf4cdc0.mp3?filename=eritnhut1992-buzzer-or-wrong-answer-20582.mp3')
+    };
+    audioAssets.bgm.loop = true;
+    audioAssets.bgm.volume = 0.4;
+
+    // --- 資料載入 ---
+    async function loadData() {
+        try {
+            const resp = await fetch(WORD_LIST_URL);
+            const text = await resp.text();
+            
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== "").slice(1); 
+            
+            words = lines.map(l => {
+                const parts = l.split(',');
+                return { 
+                    en: parts[0] ? parts[0].trim().toUpperCase() : "", 
+                    cat: parts[1] ? parts[1].trim() : "Noun",
+                    zh: parts[2] ? parts[2].trim() : "",
+                    lv: parts[3] ? parts[3].trim() : "Level 1"
+                };
+            }).filter(w => w.en !== "");
+            
+            if (words.length === 0) throw new Error("無有效單字");
+            document.getElementById('loading').style.display = 'none';
+        } catch (e) { 
+            console.error(e);
+            alert("題庫載入失敗！請確認 Sheet1 已發布為 CSV 且格式正確。"); 
+        }
+    }
+
+    function startSetup() {
+        userData.class = document.getElementById('user-class').value.trim();
+        userData.no = document.getElementById('user-no').value.trim();
+        userData.name = document.getElementById('user-name').value.trim();
+
+        if (!userData.class || !userData.name) return alert("請填寫班級與姓名");
+
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('game-container').style.display = 'flex';
+        document.getElementById('player-info').innerText = `${userData.class} ${userData.name}`;
+        
+        audioAssets.bgm.play().catch(()=>{});
+        initSR();
+        nextWord();
+    }
+
+    function nextWord() {
+        if (currentRound >= MAX_ROUNDS) { gameOver(); return; }
+        
+        currentRound++;
+        document.getElementById('progress-info').innerText = `第 ${currentRound} / ${MAX_ROUNDS} 題`;
+        
+        const rand = Math.floor(Math.random() * words.length);
+        window.currentWord = words[rand];
+        
+        const disp = document.getElementById('word-display');
+        const meta = document.getElementById('word-meta');
+        
+        disp.style.opacity = 0;
+        disp.style.transform = "scale(0.8)";
+        
+        setTimeout(() => {
+            disp.innerText = window.currentWord.en;
+            document.getElementById('chinese-hint').innerText = window.currentWord.zh;
+            
+            meta.style.display = 'flex';
+            document.getElementById('meta-cat').innerText = window.currentWord.cat;
+            document.getElementById('meta-lv').innerText = window.currentWord.lv;
+            
+            disp.style.opacity = 1;
+            disp.style.transform = "scale(1)";
+            document.getElementById('status').innerText = "請朗讀單字";
+            document.getElementById('status').style.color = "var(--secondary)";
+        }, 200);
+    }
+
+    function playHint() {
+        const u = new SpeechSynthesisUtterance(window.currentWord.en);
+        u.lang = 'en-US';
+        u.rate = 0.9;
+        speechSynthesis.speak(u);
+    }
+
+    // --- 語音辨識 ---
+    function initSR() {
+        const sr = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!sr) return alert("您的瀏覽器不支援語音辨識，請使用 Chrome。");
+        recognition = new sr();
+        recognition.lang = 'en-US';
+        recognition.onresult = (e) => {
+            const result = e.results[0][0].transcript.toUpperCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+            checkAnswer(result);
+        };
+    }
+
+    function checkAnswer(said) {
+        const target = window.currentWord.en;
+        if (said.includes(target) || getDist(said, target) <= 1) {
+            score += 5;
+            document.getElementById('score-display').innerText = `得分: ${score}`;
+            document.getElementById('status').innerText = "正確！ Excellent!";
+            document.getElementById('status').style.color = "var(--accent)";
+            audioAssets.win.play();
+            createFirework(window.innerWidth/2, window.innerHeight/2);
+            setTimeout(nextWord, 1500);
+        } else {
+            audioAssets.lose.play();
+            document.getElementById('status').innerText = `聽到: ${said} (請再試試)`;
+            document.getElementById('status').style.color = "#ff5555";
+        }
+    }
+
+    // --- 結束與 GAS 串接 (使用 fetch) ---
+    function gameOver() {
+        document.getElementById('game-container').style.display = 'none';
+        document.getElementById('result-screen').style.display = 'flex';
+        document.getElementById('final-score').innerText = score;
+        fetchLeaderboard();
+    }
+
+    async function submitToGAS() {
+        if (!APPS_SCRIPT_URL) return alert("請先在程式碼第 310 行貼上您的 GAS URL！");
+        
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+        btn.innerText = "正在傳送...";
+
+        const payload = {
+            class: userData.class,
+            no: userData.no,
+            name: userData.name,
+            score: score,
+            feedback: document.getElementById('user-feedback').value
+        };
+
+        try {
+            await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors', // 使用 no-cors 模式繞過跨域限制寫入資料
+                body: JSON.stringify(payload)
+            });
+            btn.innerText = "成功！成績已儲存";
+            setTimeout(fetchLeaderboard, 1500); 
+        } catch (e) {
+            alert("成績儲存失敗，請檢查網路。");
+            btn.disabled = false;
+            btn.innerText = "重新送出";
+        }
+    }
+
+    async function fetchLeaderboard() {
+        try {
+            const resp = await fetch(LEADERBOARD_CSV_URL + "?cache=" + Date.now());
+            const text = await resp.text();
+            
+            const rows = text.split(/\r?\n/)
+                             .filter(line => line.trim() !== "")
+                             .slice(1)
+                             .map(r => r.split(','));
+            
+            rows.sort((a,b) => (parseInt(b[3]) || 0) - (parseInt(a[3]) || 0));
+            
+            const tbody = document.querySelector('#score-table tbody');
+            tbody.innerHTML = '';
+            rows.slice(0, 15).forEach(cols => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${cols[0] || ""}</td>
+                    <td>${cols[1] || ""}</td>
+                    <td>${cols[2] || ""}</td>
+                    <td>${cols[3] || ""}</td>
+                    <td class="feedback-cell" title="${cols[4] || ''}">${cols[4] || ""}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (e) { console.log("排行榜更新中..."); }
+    }
+
+    // --- 麥克風邏輯 ---
+    const mic = document.getElementById('mic-btn');
+    const startMic = (e) => {
+        e.preventDefault();
+        if (isMicHeld || !recognition) return;
+        isMicHeld = true;
+        mic.classList.add('active');
+        document.getElementById('mascot-img').src = MASCOT_ACTIVE;
+        document.getElementById('mascot-img').style.transform = "scale(1.1)";
+        recognition.start();
+    };
+    const stopMic = () => {
+        if (!isMicHeld) return;
+        isMicHeld = false;
+        mic.classList.remove('active');
+        document.getElementById('mascot-img').src = MASCOT_NORMAL;
+        document.getElementById('mascot-img').style.transform = "scale(1)";
+        recognition.stop();
+    };
+
+    mic.addEventListener('mousedown', startMic);
+    mic.addEventListener('touchstart', startMic);
+    window.addEventListener('mouseup', stopMic);
+    window.addEventListener('touchend', stopMic);
+
+    // --- 畫布煙火 ---
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Particle {
+        constructor(x, y) {
+            this.x = x; this.y = y;
+            const a = Math.random() * Math.PI * 2;
+            const f = Math.random() * 8 + 3;
+            this.vx = Math.cos(a) * f;
+            this.vy = Math.sin(a) * f;
+            this.life = 1;
+            this.color = `hsl(${Math.random()*360}, 100%, 65%)`;
+        }
+        update() { this.x += this.vx; this.y += this.vy; this.vy += 0.18; this.life -= 0.02; }
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.globalAlpha = this.life;
+            ctx.beginPath(); ctx.arc(this.x, this.y, 3.5, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    function createFirework(x, y) {
+        audioAssets.firework.cloneNode().play();
+        for (let i=0; i<60; i++) particles.push(new Particle(x, y));
+    }
+
+    function animate() {
+        ctx.fillStyle = 'rgba(17, 17, 17, 0.25)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        particles = particles.filter(p => p.life > 0);
+        particles.forEach(p => { p.update(); p.draw(); });
+        requestAnimationFrame(animate);
+    }
+
+    function getDist(a, b) {
+        const m = [];
+        for (let i=0; i<=a.length; i++) m[i] = [i];
+        for (let j=0; j<=b.length; j++) m[0][j] = j;
+        for (let i=1; i<=a.length; i++) {
+            for (let j=1; j<=b.length; j++) {
+                m[i][j] = Math.min(m[i-1][j]+1, m[i][j-1]+1, m[i-1][j-1] + (a[i-1]===b[j-1]?0:1));
+            }
+        }
+        return m[a.length][b.length];
+    }
+
+    animate();
+    loadData();
+</script>
+</body>
+</html>
